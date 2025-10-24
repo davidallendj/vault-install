@@ -47,39 +47,67 @@ vault login
 
 ## 2. Set up PKI and ACME service
 
-This section covers how to set up the PKI mount and ACME service. Make sure that you have the `BASE_DOMAIN`, `PKI_MOUNT`, and `ACME_ROLE` environment variables set before proceeding.
+This section covers how to set up the PKI mount and ACME service. Make sure that you have the `BASE_DOMAIN`, `PKI_MOUNT`, and `ACME_ROLE` environment variables set before proceeding. You may need to add the `-tls-skip-verify` flag if no valid certificate is provided via the `VAULT_CERT` environment variable. However, this is not guaranteed to work without valid certificates.
 
 1. Enable PKI. Make sure that you ahve the `BASE_DOMAIN`, 
 
 ```bash
-vault secrets enable -tls-skip-verify -path="$PKI_MOUNT" pki
+vault secrets enable -path="$PKI_MOUNT" pki
 ```
 
 2. Generate a root - import your real CA in production
 
 ```bash
-vault write -tls-skip-verify $PKI_MOUNT/root/generate/internal common_name="${BASE_DOMAIN} Root CA" ttl=87600h
+vault write $PKI_MOUNT/root/generate/internal common_name="${BASE_DOMAIN} Root CA" ttl=87600h
 ```
 
-3. 
+3. Set the CA/CRL URLs so clients can fetch chain & revocation.
+
+```bash
+vault write $PKI_MOUNT/config/urls \
+  issuing_certificates="${VAULT_ADDR}/v1/${PKI_MOUNT}/ca" \
+  crl_distribution_points="${VAULT_ADDR}/v1/${PKI_MOUNT}/crl"
+```
+
+4. Set role used by ACME to issue leaf certs for your domain.
+
+```bash
+vault write $PKI_MOUNT/roles/$ACME_ROLE \
+  allowed_domains="$BASE_DOMAIN" allow_bare_domains=true allow_subdomains=true max_ttl="720h"
+```
+
+5. Expose ACME directory and optionally require EAB (recommended).
+
+```bash
+vault write $PKI_MOUNT/config/cluster path="${VAULT_ADDR}/v1/${PKI_MOUNT}"
+vault write $PKI_MOUNT/config/acme enabled=true allowed_roles="$ACME_ROLE" eab_policy="always-required"
+```
+
+6. Create an EAB pair (kid + hmac_key) for your ACME client.
+
+```bash
+vault write -format=json $PKI_MOUNT/acme/eab role="$ACME_ROLE"
+```
+
+The ACME directory path is `$VAULT_ADDR/v1/$PKI_MOUNT/acme/directory`.
 
 ## 3. Set up OIDC Provider
 
 This section covers configuring vault as an OIDC provider. Confirm that the `OIDC_PROVIDER`, `OIDC_KEY`, `OIDC_ROLE`, and `OIDC_TTL` variables are set before proceeding.
 
-1. Create a signing key
+1. Create a signing key.
 
 ```bash
 vault write identity/oidc/key/$OIDC_KEY algorithm=RS256
 ```
 
-2. Set up OIDC Provider 
+2. Set the OIDC Provider.
 
 ```bash
 vault write identity/oidc/provider/$OIDC_PROVIDER issuer="${VAULT_ADDR}"
 ```
 
-3. Add the `openchami-role` client ID to the `openchami-signer`
+3. Add the `openchami-role` client ID to the `openchami-signer`.
 
 > [!NOTE]
 > You can check the client IDs with the following command.
@@ -95,7 +123,7 @@ vault write identity/oidc/provider/$OIDC_PROVIDER issuer="${VAULT_ADDR}"
 > verification_ttl      24h
 > ```
 
-Get the client ID.
+Copy the `client_id`.
 
 ```bash
 vault read identity/oidc/role/openchami-role
@@ -129,21 +157,21 @@ cat > /tmp/claims.json <<'JSON'
 JSON
 ```
 
-Update claims for OIDC provider
+5. Update claims for OIDC provider
 
 ```bash
 vault write identity/oidc/role/$OIDC_ROLE key="$OIDC_KEY" \
   ttl="$OIDC_TTL" template=@/tmp/claims.json
 ```
 
-5. Confirm the discovery and JWKS endpoints are reachable.
+6. Confirm the discovery and JWKS endpoints are reachable.
 
 ```bash
 echo "Discovery: ${VAULT_ADDR}/v1/identity/oidc/provider/${OIDC_PROVIDER}/.well-known/openid-configuration"
 echo "JWKS:      ${VAULT_ADDR}/v1/identity/oidc/provider/${OIDC_PROVIDER}/.well-known/keys"
 ```
 
-6. Issue a token reading the `OIDC_ROLE`.
+7. Issue a token reading the `OIDC_ROLE`.
 
 ```bash
 vault read identity/oidc/token/$OIDC_ROLE
