@@ -13,7 +13,7 @@ init_vault() {
 }
 
 export_env() {
-	export $(cat openchami.env)
+	export $(cat install.env)
 }
 
 help_me() {
