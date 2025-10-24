@@ -11,7 +11,8 @@ source bin/funcs.sh
 export_env # export$(cat install.env)
 ```
 
-> [!TIP] This should set a couple of environment variables needed later on in this guide. Confirm that they are set using `printenv`.
+> [!TIP] 
+> This should set a couple of environment variables needed later on in this guide. Confirm that they are set using `printenv`.
 > 
 > ```bash
 > printenv | grep VAULT
@@ -33,7 +34,8 @@ Adjust the command and flags above as needed. You may need to update the `certs/
 vault operator init -key-shares=5 -key-threshold=3
 ``` 
 
-> [!TIP] You may also want to set the `VAULT_TOKEN` environment variable to the root token here.
+> [!TIP] 
+> You may also want to set the `VAULT_TOKEN` environment variable to the root token here.
 
 4. Unseal and log into vault using the keys generated above and login. You'll need to do these 3 times since the vault was initialized with `-key-threshold=3`
 
