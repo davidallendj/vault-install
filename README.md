@@ -1,12 +1,40 @@
-1. Download and install vault binary
-2. Create certificates using OpenSSL
-3. Initialize vault and save the keys
+# Install Vault with ACME, OIDC, and Versity S3 Integration
+
+## Prerequisites
+
+0. Clone this repository and initialize the environment using the scripts in the repository.
+
+```bash
+git clone https://github.com/davidallendj/vault-install
+cd vault-install
+source bin/funcs.sh
+export $(cat install.env)
+```
+
+1. Download and [install vault](https://developer.hashicorp.com/vault/install) binary. This guide assumes that the `vault` binary is installed in the `$repo/bin` directory.
+2. Create certificates using OpenSSL. Self-signed certificates are generated and used for this guide, but you can use your CA in production.
+
+```bash
+openssl req -nodes -x509 -days 365 -keyout certs/server.key -out certs/server.crt -config certs/cert.conf
+```
+
+Adjust the command and flags above as needed.
+
+3. Initialize vault and save the keys and root token somewhere secure. You should have 5 keys since `-key-shares=5` and will need these to unseal the vault and for logging in.
 
 ```bash
 vault operator init -key-shares=5 -key-threshold=3
 ``` 
 
-4. Unseal and log into vault
+4. Unseal and log into vault using the keys generated above and login. You'll need to do these 3 times since the vault was initialized with `-key-threshold=3`
+
+```bash
+# do this 3 times with 3 of the 5 generated keys
+vault operator unseal
+
+# use the generated root token here
+vault login
+```
 
 ## Set up PKI and ACME service
 
